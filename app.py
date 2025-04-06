@@ -1,36 +1,90 @@
 import streamlit as st
 import pandas as pd
+import textwrap
 import google.generativeai as genai
 
-# ใช้ secrets ของ Streamlit
-genai.configure(api_key=st.secrets["GENAI_API_KEY"])
+# Configure API Key
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-st.set_page_config(page_title="CSV Q&A with Gemini", layout="wide")
-st.title("ถามคำถามจากไฟล์ CSV ด้วย Gemini")
+# Helper function to format markdown
+def to_markdown(text):
+    text = text.replace('•', ' *')
+    return textwrap.indent(text, '> ', predicate=lambda _: True)
 
-uploaded_file = st.file_uploader("📁 อัปโหลดไฟล์ CSV", type="csv")
+# Streamlit UI
+st.title("🧠 Gemini Data Analyst Dashboard")
+st.markdown("Upload your dataset, ask questions, and get answers with Gemini!")
 
-if uploaded_file:
+uploaded_file = st.file_uploader("📤 Upload your transaction CSV", type=["csv"])
+data_dict_file = st.file_uploader("📤 Upload your data dictionary CSV", type=["csv"])
+
+if uploaded_file and data_dict_file:
     df = pd.read_csv(uploaded_file)
-    st.subheader("📊 ข้อมูลในไฟล์")
-    st.dataframe(df)
+    data_dict_df = pd.read_csv(data_dict_file)
 
-    question = st.text_input("❓ พิมพ์คำถามของคุณที่เกี่ยวข้องกับข้อมูลในตาราง")
+    st.subheader("📊 Sample Data")
+    st.dataframe(df.head(5))
 
-    if question:
-        with st.spinner("กำลังคิด..."):
-            model = genai.GenerativeModel("gemini-pro")
+    data_dict_text = '\n'.join(
+        '- ' + row['column_name'] + ': ' + row['data_type'] + '. ' + row['description']
+        for _, row in data_dict_df.iterrows()
+    )
+
+    user_question = st.text_input("❓ Ask a question about the data:")
+    
+    if user_question:
+        with st.spinner("Gemini is analyzing your question..."):
 
             prompt = f"""
-ข้อมูล CSV:
-{df.head(20).to_csv(index=False)}
+You are a helpful Python code generator.
+Your goal is to write Python code snippets based on the user's question
+and the provided DataFrame information.
 
-คำถาม:
-{question}
-
-ช่วยตอบคำถามนี้โดยอ้างอิงจากข้อมูลในตารางด้านบน
+Here's the context:
+**User Question:**
+{user_question}
+**DataFrame Name:**
+df
+**DataFrame Details:**
+{data_dict_text}
+**Sample Data (Top 2 Rows):**
+{df.head(2).to_string(index=False)}
+**Instructions:**
+1. Write Python code that addresses the user's question by querying or manipulating the DataFrame.
+2. Use the `exec()` function to execute the generated code.
+3. Do not import pandas.
+4. Change date column type to datetime if needed.
+5. Store the result in a variable named ANSWER.
+6. Assume the DataFrame is already loaded and named `df`.
+7. Keep code concise and focused on answering the question.
 """
 
             response = model.generate_content(prompt)
-            st.subheader("💬 คำตอบจาก Gemini")
-            st.write(response.text)
+            code_response = response.text.strip().replace("```python", "").replace("```", "")
+
+            st.markdown("### 🧠 Generated Code")
+            st.code(code_response)
+
+            try:
+                # Execute Gemini-generated code
+                local_vars = {"df": df}
+                exec(code_response, {}, local_vars)
+                ANSWER = local_vars.get("ANSWER", "No result found")
+
+                st.success("✅ Code executed successfully!")
+                st.subheader("🔍 Answer")
+                st.write(ANSWER)
+
+                explanation_prompt = f"""
+The user asked: "{user_question}"  
+Here is the result: {ANSWER}  
+Please summarize and interpret this result in simple terms.
+"""
+
+                explanation_response = model.generate_content(explanation_prompt)
+                st.subheader("📘 Explanation")
+                st.markdown(to_markdown(explanation_response.text))
+
+            except Exception as e:
+                st.error(f"❌ Error executing code: {e}")
