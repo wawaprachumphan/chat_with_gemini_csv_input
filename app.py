@@ -13,8 +13,8 @@ def to_markdown(text):
     return textwrap.indent(text, '> ', predicate=lambda _: True)
 
 # Streamlit UI
-st.title("🧠 Gemini Data Analyst Dashboard")
-st.markdown("Upload your dataset, ask questions, and get answers with Gemini!")
+st.title("🧠 Gemini Chatbot for Data Analysis")
+st.markdown("Ask questions about your dataset and get real-time responses!")
 
 uploaded_file = st.file_uploader("📤 Upload your transaction CSV", type=["csv"])
 data_dict_file = st.file_uploader("📤 Upload your data dictionary CSV", type=["csv"])
@@ -31,65 +31,59 @@ if uploaded_file and data_dict_file:
         for _, row in data_dict_df.iterrows()
     )
 
+    # Chatbot state to store conversation history
+    if 'conversation_history' not in st.session_state:
+        st.session_state['conversation_history'] = []
+
     user_question = st.text_input("❓ Ask a question about the data:")
-    
+
     if user_question:
         with st.spinner("Gemini is analyzing your question..."):
 
+            # Add user question to conversation history
+            st.session_state['conversation_history'].append(f"You: {user_question}")
+            
+            # Create the prompt with conversation history
+            conversation_text = "\n".join(st.session_state['conversation_history'])
             prompt = f"""
-You are a helpful Python code generator.
-Your goal is to write Python code snippets based on the user's question
-and the provided DataFrame information.
+You are a helpful Python code generator. You will respond to questions about a dataset.
+Please consider the following context:
 
-Here's the context:
 **User Question:**
 {user_question}
-**DataFrame Name:**
-df
+
 **DataFrame Details:**
 {data_dict_text}
-**Sample Data (Top 2 Rows):**
-{df.head(2).to_string(index=False)}
+
+**Conversation History:**
+{conversation_text}
+
 **Instructions:**
-1. Write Python code that addresses the user's question by querying or manipulating the DataFrame.
-2. Use the `exec()` function to execute the generated code.
-3. Do not import pandas.
-4. Change date column type to datetime if needed.
-5. Store the result in a variable named ANSWER.
-6. Assume the DataFrame is already loaded and named `df`.
-7. Keep code concise and focused on answering the question.
+1. Respond to the user's question based on the dataset and the conversation history.
+2. If you need to generate code to answer the question, be concise and clear.
+3. Provide a plain language explanation if needed.
+
+Use the information above to generate the response.
 """
 
             response = model.generate_content(prompt)
-            code_response = response.text.strip().replace("```python", "").replace("```", "")
+            answer = response.text.strip()
 
-            try:
-                # Check if a 'date' column exists, and convert to datetime if necessary
-                if 'date' in df.columns:
-                    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            # Display response
+            st.session_state['conversation_history'].append(f"Gemini: {answer}")
+            
+            # Show the full conversation
+            st.subheader("💬 Conversation History")
+            for msg in st.session_state['conversation_history']:
+                st.write(msg)
 
-                # Execute Gemini-generated code with pd and df available
-                local_vars = {"df": df, "pd": pd}
-                exec(code_response, {}, local_vars)
-
-                # Retrieve the result from local_vars
-                ANSWER = local_vars.get("ANSWER", "No result found")
-
-                st.subheader("🔍 Answer")
-                st.write(ANSWER)
-
-                # Explanation prompt for Gemini
-                explanation_prompt = f"""
-The user asked: "{user_question}"  
-Here is the result: {ANSWER}  
-Please summarize and interpret this result in simple terms. Include the following:
-1. A summary of the result (what it means in plain language).
-2. An analysis of the customer's persona based on the question (what can we infer about them based on their request).
+            # Optionally explain the results using another prompt to Gemini
+            explanation_prompt = f"""
+The user asked: "{user_question}"
+Here is the result: {answer}
+Please summarize and interpret this result in simple terms.
 """
 
-                explanation_response = model.generate_content(explanation_prompt)
-                st.subheader("📘 Explanation and Analysis")
-                st.markdown(to_markdown(explanation_response.text))
-
-            except Exception as e:
-                st.error(f"❌ Error executing code: {e}")
+            explanation_response = model.generate_content(explanation_prompt)
+            st.subheader("📘 Explanation")
+            st.markdown(to_markdown(explanation_response.text))
