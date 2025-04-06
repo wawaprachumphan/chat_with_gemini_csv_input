@@ -63,7 +63,6 @@ df
             response = model.generate_content(prompt)
             code_response = response.text.strip().replace("```python", "").replace("```", "")
 
-            # Removed the part that displays the generated code
             try:
                 # Check if a 'date' column exists, and convert to datetime if necessary
                 if 'date' in df.columns:
@@ -76,7 +75,6 @@ df
                 # Retrieve the result from local_vars
                 ANSWER = local_vars.get("ANSWER", "No result found")
 
-                st.success("✅ Code executed successfully!")
                 st.subheader("🔍 Answer")
                 st.write(ANSWER)
 
