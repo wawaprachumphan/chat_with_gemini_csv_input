@@ -3,7 +3,7 @@ import pandas as pd
 import textwrap
 import google.generativeai as genai
 
-# Configure API Key
+# Configure API Key for Gemini
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -13,28 +13,29 @@ def to_markdown(text):
     return textwrap.indent(text, '> ', predicate=lambda _: True)
 
 # Streamlit UI
-st.title("🧠 Gemini Chatbot for Data Analysis")
-st.markdown("Ask questions about your dataset and get real-time responses!")
+st.title("🧠 Gemini Data Chatbot")
+st.markdown("Upload your dataset, ask questions, and get answers from the data!")
 
+# File uploader to upload CSV
 uploaded_file = st.file_uploader("📤 Upload your transaction CSV", type=["csv"])
-data_dict_file = st.file_uploader("📤 Upload your data dictionary CSV", type=["csv"])
 
-if uploaded_file and data_dict_file:
+if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    data_dict_df = pd.read_csv(data_dict_file)
 
     st.subheader("📊 Sample Data")
-    st.dataframe(df.head(5))
+    st.dataframe(df.head(5))  # Show the first few rows of the uploaded data
 
-    data_dict_text = '\n'.join(
-        '- ' + row['column_name'] + ': ' + row['data_type'] + '. ' + row['description']
-        for _, row in data_dict_df.iterrows()
+    # Create data dictionary text for context
+    data_dict_text = "\n".join(
+        "- " + col + ": " + str(df[col].dtype) + ". This column contains " + str(df[col].nunique()) + " unique values."
+        for col in df.columns
     )
 
     # Chatbot state to store conversation history
     if 'conversation_history' not in st.session_state:
         st.session_state['conversation_history'] = []
 
+    # User input for asking a question
     user_question = st.text_input("❓ Ask a question about the data:")
 
     if user_question:
@@ -66,10 +67,11 @@ Please consider the following context:
 Use the information above to generate the response.
 """
 
+            # Get response from Gemini
             response = model.generate_content(prompt)
             answer = response.text.strip()
 
-            # Display response
+            # Add Gemini response to conversation history
             st.session_state['conversation_history'].append(f"Gemini: {answer}")
             
             # Show the full conversation
