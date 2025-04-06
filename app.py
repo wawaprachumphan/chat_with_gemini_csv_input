@@ -80,14 +80,17 @@ df
                 st.subheader("🔍 Answer")
                 st.write(ANSWER)
 
+                # Explanation prompt for Gemini
                 explanation_prompt = f"""
 The user asked: "{user_question}"  
 Here is the result: {ANSWER}  
-Please summarize and interpret this result in simple terms.
+Please summarize and interpret this result in simple terms. Include the following:
+1. A summary of the result (what it means in plain language).
+2. An analysis of the customer's persona based on the question (what can we infer about them based on their request).
 """
 
                 explanation_response = model.generate_content(explanation_prompt)
-                st.subheader("📘 Explanation")
+                st.subheader("📘 Explanation and Analysis")
                 st.markdown(to_markdown(explanation_response.text))
 
             except Exception as e:
