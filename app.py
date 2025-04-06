@@ -63,9 +63,7 @@ df
             response = model.generate_content(prompt)
             code_response = response.text.strip().replace("```python", "").replace("```", "")
 
-            st.markdown("### 🧠 Generated Code")
-            st.code(code_response)
-
+            # Removed the part that displays the generated code
             try:
                 # Check if a 'date' column exists, and convert to datetime if necessary
                 if 'date' in df.columns:
