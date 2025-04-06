@@ -67,9 +67,15 @@ df
             st.code(code_response)
 
             try:
-                # Execute Gemini-generated code
-                local_vars = {"df": df}
+                # Check if a 'date' column exists, and convert to datetime if necessary
+                if 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+                # Execute Gemini-generated code with pd and df available
+                local_vars = {"df": df, "pd": pd}
                 exec(code_response, {}, local_vars)
+
+                # Retrieve the result from local_vars
                 ANSWER = local_vars.get("ANSWER", "No result found")
 
                 st.success("✅ Code executed successfully!")
