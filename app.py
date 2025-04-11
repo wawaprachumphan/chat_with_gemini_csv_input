@@ -1,91 +1,45 @@
 import streamlit as st
 import pandas as pd
-import textwrap
-import google.generativeai as genai
 
-# Configure API Key for Gemini
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+st.set_page_config(page_title="CSV Chatbot", layout="centered")
 
-# Helper function to format markdown
-def to_markdown(text):
-    text = text.replace('•', ' *')
-    return textwrap.indent(text, '> ', predicate=lambda _: True)
+st.title("🤖 Chat with Your CSV")
 
-# Streamlit UI
-st.title("🧠 Gemini Data Chatbot")
-st.markdown("Upload your dataset, ask questions, and get answers from the data!")
+# --- Section 1: Upload Main Dataset ---
+st.header("📂 Section 1: Upload Main Dataset (CSV)")
+st.caption("Choose your main data CSV file")
+main_csv = st.file_uploader("Drag and drop file here", type="csv", key="main_csv")
 
-# File uploader to upload CSV
-uploaded_file = st.file_uploader("📤 Upload your transaction CSV", type=["csv"])
+# --- Section 2: Upload Data Dictionary (Optional) ---
+st.header("📖 Section 2: Upload Data Dictionary (Optional)")
+st.caption("Upload a data dictionary CSV (optional)")
+dictionary_csv = st.file_uploader("Drag and drop file here", type="csv", key="dict_csv")
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+# --- Checkbox to enable AI analysis ---
+analyze = st.checkbox("📊 Analyze CSV with AI")
 
-    st.subheader("📊 Sample Data")
-    st.dataframe(df.head(5))  # Show the first few rows of the uploaded data
+# --- Chat input ---
+user_question = st.text_input("💬 Type your question here...")
 
-    # Create data dictionary text for context
-    data_dict_text = "\n".join(
-        "- " + col + ": " + str(df[col].dtype) + ". This column contains " + str(df[col].nunique()) + " unique values."
-        for col in df.columns
-    )
+# --- AI analysis logic (placeholder) ---
+if analyze and user_question and main_csv is not None:
+    try:
+        df = pd.read_csv(main_csv)
+        st.markdown("**🤖 AI Response:**")
+        st.write(f"You asked: `{user_question}`")
+        st.write("Here's a quick look at your data:")
+        st.dataframe(df.head())
+        st.info("This is just a placeholder. You can plug in an LLM for real Q&A.")
+    except Exception as e:
+        st.error(f"Error loading CSV: {e}")
+elif analyze and user_question and main_csv is None:
+    st.warning("Please upload your main dataset first.")
 
-    # Chatbot state to store conversation history
-    if 'conversation_history' not in st.session_state:
-        st.session_state['conversation_history'] = []
+# --- Optional: Display uploaded files ---
+if main_csv:
+    with st.expander("Preview Main Dataset"):
+        st.dataframe(pd.read_csv(main_csv).head())
 
-    # User input for asking a question
-    user_question = st.text_input("❓ Ask a question about the data:")
-
-    if user_question:
-        with st.spinner("Gemini is analyzing your question..."):
-
-            # Add user question to conversation history
-            st.session_state['conversation_history'].append(f"You: {user_question}")
-            
-            # Create the prompt with conversation history
-            conversation_text = "\n".join(st.session_state['conversation_history'])
-            prompt = f"""
-You are a helpful Python code generator. You will respond to questions about a dataset.
-Please consider the following context:
-
-**User Question:**
-{user_question}
-
-**DataFrame Details:**
-{data_dict_text}
-
-**Conversation History:**
-{conversation_text}
-
-**Instructions:**
-1. Respond to the user's question based on the dataset and the conversation history.
-2. If you need to generate code to answer the question, be concise and clear.
-3. Provide a plain language explanation if needed.
-
-Use the information above to generate the response.
-"""
-
-            # Get response from Gemini
-            response = model.generate_content(prompt)
-            answer = response.text.strip()
-
-            # Add Gemini response to conversation history
-            st.session_state['conversation_history'].append(f"Gemini: {answer}")
-            
-            # Show the full conversation
-            st.subheader("💬 Conversation History")
-            for msg in st.session_state['conversation_history']:
-                st.write(msg)
-
-            # Optionally explain the results using another prompt to Gemini
-            explanation_prompt = f"""
-The user asked: "{user_question}"
-Here is the result: {answer}
-Please summarize and interpret this result in simple terms.
-"""
-
-            explanation_response = model.generate_content(explanation_prompt)
-            st.subheader("📘 Explanation")
-            st.markdown(to_markdown(explanation_response.text))
+if dictionary_csv:
+    with st.expander("Preview Data Dictionary"):
+        st.dataframe(pd.read_csv(dictionary_csv).head())
